@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portofolio Pribadi</title>
+<style>
+:root {
+  --site-primary: #173b35;
+  --site-on-primary: #ffffff;
+  --site-secondary: #e8efe9;
+  --site-on-secondary: #173b35;
+  --site-background: #f7f8f4;
+  --site-on-background: #1d2925;
+  --site-font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --site-font-heading: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --site-heading-scale: 1;
+  --site-spacing-scale: 1;
+  --site-radius-scale: 1;
+  --site-decoration-opacity: 1;
+  --surface: light-dark(#ffffff, #19211f);
+  --muted: light-dark(#5f6e68, #b5c1bb);
+  --border: light-dark(#dfe6e0, #34413b);
+  --accent: #c7df83;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; color-scheme: light dark; }
+body { margin: 0; font-family: var(--site-font-body); background: var(--site-background); color: var(--site-on-background); }
+#app { min-height: 100vh; width: 100%; background-color: var(--site-background); color: var(--site-on-background); border-radius: 0; overflow: hidden; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea { font: inherit; }
+.wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+nav { display: flex; align-items: center; justify-content: space-between; padding: calc(22px * var(--site-spacing-scale)) 0; gap: 18px; }
+.brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: -.04em; }
+.brand-mark { width: 38px; height: 38px; border-radius: calc(12px * var(--site-radius-scale)); background: var(--site-primary); color: var(--site-on-primary); display: grid; place-items: center; font-size: 14px; }
+.nav-links { display: flex; gap: 26px; color: var(--muted); font-size: 13px; font-weight: 650; }
+.nav-links a:hover, .text-link:hover { color: var(--site-primary); }
+.nav-cta, .button { border: 0; border-radius: calc(999px * var(--site-radius-scale)); padding: 12px 18px; background: var(--site-primary); color: var(--site-on-primary); font-size: 13px; font-weight: 750; cursor: pointer; display: inline-flex; align-items: center; gap: 9px; transition: transform .2s, opacity .2s; }
+.button:hover, .nav-cta:hover { transform: translateY(-2px); opacity: .92; }
+.button.secondary { background: var(--surface); color: var(--site-on-background); border: 1px solid var(--border); }
+.hero { padding: clamp(52px, 8vw, 105px) 0 76px; display: grid; grid-template-columns: 1.2fr .8fr; gap: 54px; align-items: center; }
+.eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--site-primary); background: var(--site-secondary); border-radius: 999px; padding: 8px 12px; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.dot { width: 7px; height: 7px; background: #7da53b; border-radius: 50%; }
+h1, h2, h3, p { margin-top: 0; }
+h1 { font-family: var(--site-font-heading); font-size: clamp(42px, 6vw, 76px); line-height: 1.02; letter-spacing: -.065em; margin: 22px 0; max-width: 700px; }
+h1 span { color: #668d53; }
+.lead { color: var(--muted); font-size: 17px; line-height: 1.8; max-width: 580px; margin-bottom: 27px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.hero-meta { display: flex; gap: 25px; flex-wrap: wrap; margin-top: 36px; color: var(--muted); font-size: 12px; }
+.hero-meta strong { color: var(--site-on-background); display: block; font-size: 13px; margin-bottom: 4px; }
+.visual { position: relative; min-height: 390px; display: grid; place-items: center; }
+.profile-card { position: relative; z-index: 1; width: min(100%, 340px); min-height: 370px; border-radius: calc(28px * var(--site-radius-scale)); background: var(--site-primary); color: var(--site-on-primary); padding: 28px; overflow: hidden; box-shadow: 0 22px 70px #173b3522; }
+.profile-card:before { content: ''; position: absolute; width: 250px; height: 250px; right: -90px; top: -70px; border-radius: 50%; border: 1px solid #ffffff33; box-shadow: 0 0 0 30px #ffffff0d, 0 0 0 60px #ffffff08; opacity: var(--site-decoration-opacity); }
+.avatar { width: 104px; height: 104px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #203b2b; font-size: 31px; font-weight: 850; letter-spacing: -.06em; margin: 26px 0 23px; }
+.profile-card h2 { font-size: 25px; letter-spacing: -.04em; margin-bottom: 7px; }
+.profile-card p { color: #d1ded7; font-size: 13px; line-height: 1.65; }
+.profile-bottom { position: absolute; bottom: 24px; left: 28px; right: 28px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #ffffff2b; padding-top: 16px; color: #d1ded7; font-size: 11px; }
+.float-note { position: absolute; z-index: 2; bottom: 26px; left: -2px; background: var(--surface); border: 1px solid var(--border); border-radius: calc(16px * var(--site-radius-scale)); padding: 15px 18px; box-shadow: 0 12px 32px #15251b14; font-size: 12px; }
+.float-note strong { display: block; font-size: 13px; margin-bottom: 4px; }
+section { padding: 74px 0; }
+.section-head { display: flex; justify-content: space-between; gap: 25px; align-items: end; margin-bottom: 30px; }
+.kicker { color: #668d53; font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .15em; margin-bottom: 11px; }
+h2.section-title { font-size: clamp(30px, 4vw, 45px); letter-spacing: -.055em; line-height: 1.1; margin-bottom: 0; }
+.section-intro { color: var(--muted); line-height: 1.7; max-width: 420px; margin-bottom: 2px; font-size: 14px; }
+.about-grid { display: grid; grid-template-columns: .85fr 1.15fr; gap: 20px; }
+.about-panel { background: var(--site-secondary); border-radius: calc(22px * var(--site-radius-scale)); padding: 28px; }
+.about-panel h3 { font-size: 21px; letter-spacing: -.04em; }
+.about-panel p { color: var(--muted); line-height: 1.8; font-size: 14px; margin-bottom: 0; }
+.stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 22px; }
+.stat { padding: 15px; border-radius: calc(14px * var(--site-radius-scale)); background: var(--surface); border: 1px solid var(--border); }
+.stat strong { display: block; font-size: 17px; letter-spacing: -.04em; }
+.stat span { display: block; font-size: 10px; color: var(--muted); margin-top: 5px; }
+.experience-list { display: grid; gap: 14px; }
+.experience { display: grid; grid-template-columns: 54px 1fr auto; gap: 18px; align-items: start; padding: 23px; background: var(--surface); border: 1px solid var(--border); border-radius: calc(18px * var(--site-radius-scale)); }
+.company-icon { width: 50px; height: 50px; display: grid; place-items: center; border-radius: calc(15px * var(--site-radius-scale)); background: var(--site-secondary); color: var(--site-primary); font-size: 12px; font-weight: 850; }
+.experience h3 { font-size: 17px; letter-spacing: -.03em; margin-bottom: 6px; }
+.experience .org { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+.experience p { font-size: 13px; color: var(--muted); line-height: 1.7; margin-bottom: 0; }
+.pill { background: var(--site-secondary); color: var(--site-primary); padding: 7px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.projects { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.project { background: var(--surface); border: 1px solid var(--border); border-radius: calc(20px * var(--site-radius-scale)); padding: 23px; min-height: 215px; display: flex; flex-direction: column; }
+.project-number { color: #668d53; font-size: 12px; font-weight: 850; letter-spacing: .1em; margin-bottom: 30px; }
+.project h3 { font-size: 18px; letter-spacing: -.035em; margin-bottom: 9px; }
+.project p { color: var(--muted); font-size: 13px; line-height: 1.7; margin-bottom: 18px; }
+.project .tagline { margin-top: auto; font-size: 11px; color: var(--site-primary); font-weight: 800; }
+.skills-wrap { display: grid; grid-template-columns: .7fr 1.3fr; gap: 40px; align-items: start; }
+.skills-wrap > p { color: var(--muted); font-size: 14px; line-height: 1.8; }
+.skills { display: flex; flex-wrap: wrap; gap: 10px; }
+.skill { padding: 12px 15px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12px; font-weight: 700; }
+.achievement { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 20px; background: var(--site-primary); color: var(--site-on-primary); border-radius: calc(24px * var(--site-radius-scale)); padding: clamp(26px, 5vw, 46px); }
+.achievement .kicker { color: var(--accent); }
+.achievement h2 { font-size: clamp(26px, 4vw, 40px); letter-spacing: -.05em; margin-bottom: 12px; }
+.achievement p { color: #d1ded7; font-size: 14px; line-height: 1.7; max-width: 650px; margin-bottom: 0; }
+.achievement-mark { width: 76px; height: 76px; display: grid; place-items: center; border: 1px solid #ffffff4a; border-radius: 50%; color: var(--accent); font-size: 28px; }
+.contact-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 40px; }
+.contact-copy p { color: var(--muted); line-height: 1.8; font-size: 14px; }
+.contact-links { display: grid; gap: 10px; margin-top: 22px; }
+.contact-item { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 700; }
+.contact-item span { width: 35px; height: 35px; border-radius: 11px; display: grid; place-items: center; background: var(--site-secondary); color: var(--site-primary); }
+form { background: var(--surface); border: 1px solid var(--border); border-radius: calc(20px * var(--site-radius-scale)); padding: 24px; display: grid; gap: 13px; }
+label { font-size: 12px; font-weight: 750; display: grid; gap: 7px; }
+input, textarea { width: 100%; padding: 12px 13px; border: 1px solid var(--border); border-radius: 11px; color: var(--site-on-background); background: var(--site-background); outline: none; }
+input:focus, textarea:focus { border-color: #668d53; }
+textarea { min-height: 105px; resize: vertical; }
+footer { padding: 26px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+.footer-inner { display: flex; justify-content: space-between; gap: 15px; }
+.edit-tip { background: var(--site-secondary); border: 1px dashed #9eb79c; padding: 14px 16px; border-radius: 13px; color: var(--site-on-secondary); font-size: 12px; line-height: 1.7; margin-top: 20px; }
+@media (prefers-color-scheme: dark) { .eyebrow { color: #d6edb4; } .nav-links a:hover, .text-link:hover { color: #d6edb4; } .experience .pill { color: #d6edb4; } .project .tagline { color: #d6edb4; } }
+@media (max-width: 760px) { .nav-links { display: none; } .hero { grid-template-columns: 1fr; gap: 25px; padding-top: 48px; } .visual { min-height: 370px; } .float-note { left: 0; } .section-head { align-items: start; flex-direction: column; } .about-grid, .skills-wrap, .contact-grid { grid-template-columns: 1fr; gap: 16px; } .projects { grid-template-columns: 1fr; } .project { min-height: 170px; } .project-number { margin-bottom: 20px; } .experience { grid-template-columns: 46px 1fr; gap: 13px; padding: 17px; } .experience .pill { grid-column: 2; justify-self: start; } .company-icon { width: 44px; height: 44px; } .achievement { grid-template-columns: 1fr; } .achievement-mark { display: none; } section { padding: 52px 0; } .stat-row { grid-template-columns: 1fr; } .footer-inner { flex-direction: column; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="wrap">
+    <nav aria-label="Navigasi utama">
+      <a class="brand" href="#beranda"><span class="brand-mark">FF</span><span>PORTOFOLIO<span style="color:#668d53">.</span></span></a>
+      <div class="nav-links"><a href="#tentang">Tentang</a><a href="#pengalaman">Pengalaman</a><a href="#proyek">Proyek</a><a href="#keahlian">Keahlian</a></div>
+      <a class="nav-cta" href="#kontak">Hubungi saya <span aria-hidden="true">↗</span></a>
+    </nav>
+    <main>
+      <section class="hero" id="beranda" style="padding-top:0">
+        <div>
+          <div class="eyebrow"><span class="dot"></span> Terbuka untuk peluang karier</div>
+          <h1>Halo, saya <span>Fitra.</span><br>Siap berkarya dan bertumbuh.</h1>
+          <p class="lead">Mahasiswa Sosiologi dengan minat pada administrasi, komunikasi, penulisan, dan pengelolaan informasi. Saya senang belajar hal baru, bekerja secara terstruktur, dan berkontribusi dalam tim.</p>
+          <div class="hero-actions"><a class="button" href="#pengalaman">Lihat pengalaman <span aria-hidden="true">↘</span></a><a class="button secondary" href="#kontak">Mari terhubung</a></div>
+          <div class="hero-meta"><div><strong>Administrasi</strong>Pengelolaan data & dokumen</div><div><strong>Komunikasi</strong>Penulisan & koordinasi</div><div><strong>Pembelajaran</strong>Akademik & riset</div></div>
+        </div>
+        <div class="visual" aria-label="Kartu profil portofolio">
+          <div class="profile-card"><div style="font-size:11px;letter-spacing:.15em;font-weight:800;color:#d1ded7">PROFIL SINGKAT / 2026</div><div class="avatar">FF</div><h2>Fitra</h2><p>Mahasiswa Sosiologi<br>Universitas Negeri Makassar</p><div class="profile-bottom"><span>Makassar, Indonesia</span><span>Profil profesional ↗</span></div></div>
+          <div class="float-note"><strong>Berorientasi pada detail</strong><span style="color:var(--muted)">Rapi · Adaptif · Kolaboratif</span></div>
+        </div>
+      </section>
+      <section id="tentang">
+        <div class="section-head"><div><div class="kicker">01 / Tentang saya</div><h2 class="section-title">Membangun pengalaman,<br>menciptakan dampak.</h2></div><p class="section-intro">Saya ingin terus mengembangkan kemampuan profesional melalui pengalaman kerja, kolaborasi, dan pembelajaran berkelanjutan.</p></div>
+        <div class="about-grid"><div class="about-panel"><h3>Profil profesional</h3><p>Saya merupakan mahasiswa Universitas Negeri Makassar yang tertarik pada bidang administrasi perkantoran, pengelolaan dokumen, penulisan berita, dan kegiatan penelitian. Saya terbiasa mempelajari alur kerja baru serta berusaha menyelesaikan tugas secara teliti dan bertanggung jawab.</p></div><div class="about-panel" style="background:var(--surface);border:1px solid var(--border)"><h3>Fokus pengembangan</h3><p>Menghubungkan kemampuan akademik dengan kebutuhan dunia kerja, terutama dalam pengarsipan, administrasi data, komunikasi profesional, dokumentasi, dan penulisan.</p><div class="stat-row"><div class="stat"><strong>Administrasi</strong><span>Data & arsip</span></div><div class="stat"><strong>Media</strong><span>Penulisan berita</span></div><div class="stat"><strong>Riset</strong><span>Karya ilmiah</span></div></div></div></div>
+      </section>
+      <section id="pengalaman" style="background:var(--site-secondary)">
+        <div class="section-head"><div><div class="kicker">02 / Pengalaman</div><h2 class="section-title">Pengalaman yang<br>membentuk saya.</h2></div><p class="section-intro">Pengalaman magang dan kegiatan profesional yang membantu saya memahami proses kerja, komunikasi, dan tanggung jawab.</p></div>
+        <div class="experience-list">
+          <article class="experience"><div class="company-icon">PG</div><div><h3>Administrasi dan Pengelolaan Dokumen</h3><div class="org">PT Pegadaian · Kantor Wilayah VI Makassar</div><p>Mendukung kegiatan administrasi persuratan dan pengarsipan, membantu pemeriksaan kelengkapan dokumen, melakukan pencocokan data, serta membantu pengelolaan berkas terkait layanan nasabah.</p></div><span class="pill">Administrasi</span></article>
+          <article class="experience"><div class="company-icon">HF</div><div><h3>Penulisan Berita dan Dokumentasi</h3><div class="org">PT Harian Fajar Graha Pena</div><p>Mendukung kegiatan jurnalistik melalui penulisan berita dan peliputan kegiatan, termasuk dokumentasi kegiatan sekolah dan penyusunan informasi untuk kebutuhan media.</p></div><span class="pill">Media & komunikasi</span></article>
+          <article class="experience"><div class="company-icon">UNM</div><div><h3>Mahasiswa Sosiologi</h3><div class="org">Universitas Negeri Makassar · Fakultas Ilmu Sosial dan Hukum</div><p>Mengembangkan kemampuan analisis sosial, pengumpulan informasi, wawancara, penulisan akademik, dan penyusunan laporan penelitian.</p></div><span class="pill">Akademik</span></article>
+        </div>
+      </section>
+      <section id="proyek">
+        <div class="section-head"><div><div class="kicker">03 / Proyek pilihan</div><h2 class="section-title">Pekerjaan dan kontribusi.</h2></div><p class="section-intro">Contoh bidang kerja yang dapat dilengkapi dengan foto kegiatan, dokumen, atau tautan hasil karya.</p></div>
+        <div class="projects"><article class="project"><div class="project-number">PROYEK / 01</div><h3>Administrasi dan Pengarsipan</h3><p>Pengelolaan surat masuk dan keluar, penataan arsip, pemeriksaan berkas, serta pencocokan data administrasi.</p><div class="tagline">Ketelitian · Dokumentasi</div></article><article class="project"><div class="project-number">PROYEK / 02</div><h3>Penulisan dan Peliputan Berita</h3><p>Penyusunan naskah berita dan dokumentasi kegiatan sebagai bagian dari proses kerja jurnalistik.</p><div class="tagline">Penulisan · Komunikasi</div></article><article class="project"><div class="project-number">PROYEK / 03</div><h3>Penelitian dan Karya Ilmiah</h3><p>Kegiatan akademik yang berfokus pada penelitian sosial, pengolahan temuan, dan penyusunan tulisan ilmiah.</p><div class="tagline">Riset · Analisis</div></article></div>
+      </section>
+      <section id="keahlian" style="background:var(--site-secondary)">
+        <div class="skills-wrap"><div><div class="kicker">04 / Keahlian</div><h2 class="section-title">Bekal untuk<br>berkembang.</h2><p>Keahlian berikut merupakan titik awal. Sesuaikan dengan kemampuan yang benar-benar kamu kuasai dan pengalaman yang bisa kamu jelaskan saat wawancara.</p></div><div class="skills"><span class="skill">Administrasi perkantoran</span><span class="skill">Pengarsipan dokumen</span><span class="skill">Microsoft Word</span><span class="skill">Microsoft Excel</span><span class="skill">Google Sheets</span><span class="skill">Penulisan berita</span><span class="skill">Penulisan akademik</span><span class="skill">Pengumpulan data</span><span class="skill">Komunikasi</span><span class="skill">Kerja sama tim</span><span class="skill">Dokumentasi kegiatan</span><span class="skill">Manajemen waktu</span></div></div>
+      </section>
+      <section id="pencapaian">
+        <div class="achievement"><div><div class="kicker">05 / Pencapaian</div><h2>Pendanaan Riset Bina Insan Akademia 2025</h2><p>Lolos tahapan seleksi program pendanaan riset Bina Insan Akademia 2025 dari Kementerian Pemuda dan Olahraga Republik Indonesia. Pengalaman ini menjadi motivasi untuk terus mengembangkan kapasitas akademik, penelitian, dan kontribusi sosial.</p></div><div class="achievement-mark" aria-hidden="true">✳</div></div>
+      </section>
+      <section id="kontak">
+        <div class="section-head"><div><div class="kicker">06 / Kontak</div><h2 class="section-title">Mari terhubung.</h2></div><p class="section-intro">Terbuka untuk kesempatan magang, pekerjaan, kolaborasi, dan pengembangan profesional.</p></div>
+        <div class="contact-grid"><div class="contact-copy"><p>Silakan hubungi saya melalui kontak yang dicantumkan. Saya akan senang berdiskusi mengenai peluang yang relevan.</p><div class="contact-links"><a class="contact-item" href="https://www.linkedin.com/" target="_blank" rel="noreferrer"><span>in</span> LinkedIn — tambahkan tautan profilmu</a><div class="contact-item"><span>✉</span> Email — tambahkan alamat emailmu</div><div class="contact-item"><span>⌖</span> Makassar, Sulawesi Selatan</div></div><div class="edit-tip"><strong>Catatan sebelum dipublikasikan:</strong> ganti inisial dan nama, tambahkan foto profesional, tautan LinkedIn, email, tanggal pengalaman, serta lampiran sertifikat yang relevan.</div></div>
+          <form id="contactForm"><label>Nama<input id="senderName" name="name" placeholder="Nama kamu" required></label><label>Email<input id="senderEmail" name="email" type="email" placeholder="nama@email.com" required></label><label>Pesan<textarea id="senderMessage" name="message" placeholder="Ceritakan maksud atau peluang yang ingin dibahas..." required></textarea></label><button class="button" type="submit">Siapkan pesan <span aria-hidden="true">↗</span></button><p id="formStatus" aria-live="polite" style="font-size:11px;color:var(--muted);margin:0">Formulir ini menyiapkan teks pesan; belum mengirim data ke server.</p></form>
+        </div>
+      </section>
+    </main>
+    <footer><div class="footer-inner"><span>© 2026 Fitra · Portofolio pribadi</span><span>Dibuat untuk perjalanan karier yang terus berkembang.</span></div></footer>
+  </div>
+</div>
+<script>
+document.getElementById('contactForm').addEventListener('submit', function(event) {
+  event.preventDefault();
+  const name = document.getElementById('senderName').value.trim();
+  const email = document.getElementById('senderEmail').value.trim();
+  const message = document.getElementById('senderMessage').value.trim();
+  const body = `Nama: ${name}\nEmail: ${email}\n\nPesan:\n${message}`;
+  const subject = encodeURIComponent('Pesan melalui website portofolio');
+  document.getElementById('formStatus').textContent = 'Pesan sudah disiapkan. Untuk mengirim, tambahkan email tujuan pada kode website lalu hubungkan tombol ini ke alamat email tersebut.';
+  const blob = new Blob([body], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'pesan-portofolio.txt';
+  link.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>

@@ -1,416 +1,5 @@
 <!DOCTYPE html>
-<html lang="id-ID" class="transparentSkybridgeBackground desktopSkybridge dark" data-theme="dark" style="color-scheme: dark; --safe-area-inset-top: 0px; --safe-area-inset-bottom: 0px; --safe-area-inset-left: 0px; --safe-area-inset-right: 0px;"><head><style>@layer sandbox-defaults{html,body,#root{margin:0;padding:0}}</style><script data-sites-preview-runtime="" data-annotation-cursor="url(&quot;data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2226%22%20height%3D%2226%22%20viewBox%3D%220%200%2026%2026%22%3E%3Cpath%20d%3D%22M13%200.825a12.175%2012.175%200%200%201%200%2024.35H3a2.175%202.175%200%200%201-2.175-2.175V13A12.175%2012.175%200%200%201%2013%200.825Z%22%20fill%3D%22%23339cff%22%20stroke%3D%22white%22%20stroke-width%3D%221.65%22%2F%3E%3C%2Fsvg%3E&quot;) 0 25, crosshair">/* oxlint-disable typescript/no-unsafe-argument, typescript/no-unsafe-call, typescript/no-unsafe-return */
-// Runs only inside the preview sandbox; import with ?raw in the host.
-(() => {
-  const nodeAttribute = "data-sites-preview-node";
-  const nodeSelector = "[" + nodeAttribute + "]";
-  let state = { mode: "interact", revision: 0, targets: [] };
-  let hovered = null;
-  let gesture = null;
-  let suppressClick = false;
-  let frame = 0;
-  const overlay = document.createElement("div");
-  overlay.setAttribute("data-sites-preview-runtime", "");
-  overlay.setAttribute("aria-hidden", "true");
-  overlay.setAttribute("popover", "manual");
-  const shadow = overlay.attachShadow({ mode: "closed" });
-  const styles = document.createElement("style");
-  styles.textContent = `
-:host {
-  position: fixed;
-  inset: 0;
-  width: auto;
-  height: auto;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  overflow: visible;
-  background: transparent;
-  pointer-events: none;
-}
-div {
-  /* Match Sites' SitePreviewAnnotations.module.css outline. */
-  position: fixed;
-  box-sizing: border-box;
-  pointer-events: none;
-  border: 2px solid #0285ff;
-  border-radius: 3px;
-  background: rgb(2 133 255 / 8%);
-}
-`;
-  shadow.append(styles);
-  const annotationCursorStyle = document.createElement("style");
-  annotationCursorStyle.setAttribute("data-sites-preview-runtime", "");
-  annotationCursorStyle.textContent =
-    ":root, :root * { cursor: " +
-    (document.currentScript?.getAttribute("data-annotation-cursor") ||
-      "crosshair") +
-    " !important; }";
-  annotationCursorStyle.media = "not all";
-
-  const getId = (element) => element.getAttribute(nodeAttribute);
-  const excluded =
-    "[data-sites-preview-runtime],script,style,template,noscript,iframe,object,embed,link,meta,svg,canvas,video,audio,input,textarea,select,option";
-  const selectable = (element) =>
-    element?.nodeType === 1 &&
-    !element.closest(excluded) &&
-    element.closest(nodeSelector);
-  const getNode = (target) => {
-    if (target.rendered) {
-      try {
-        return document.querySelector(target.rendered.selector);
-      } catch {
-        return null;
-      }
-    }
-    return [...document.querySelectorAll(nodeSelector)].find(
-      (node) => getId(node) === target.nodeId,
-    );
-  };
-  const getTarget = (element) => {
-    const source = element.closest(nodeSelector);
-    if (!source) {
-      return null;
-    }
-    const nodeId = getId(source);
-    if (source === element) {
-      return { nodeId };
-    }
-    const path = [];
-    let current = element;
-    while (current && current !== document.body) {
-      const parent = current.parentElement;
-      if (!parent) {
-        return null;
-      }
-      path.unshift(
-        ":nth-child(" + ([...parent.children].indexOf(current) + 1) + ")",
-      );
-      current = parent;
-    }
-    path.unshift("body");
-    const selector = path.join(" > ");
-    if (selector.length > 2000) {
-      return null;
-    }
-    return {
-      nodeId,
-      rendered: {
-        selector,
-        tagName: element.tagName.toLowerCase().slice(0, 64),
-        text: (
-          element.getAttribute("aria-label") ||
-          element.getAttribute("alt") ||
-          element.textContent ||
-          ""
-        )
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 200),
-        html: element.outerHTML.slice(0, 1500),
-      },
-    };
-  };
-  const targetAt = (event) => (selectable(event.target) ? event.target : null);
-  const active = () => state.mode === "select";
-  const isDragging = (value) =>
-    value.dragging ||
-    Math.hypot(value.x - value.startX, value.y - value.startY) >= 4;
-  const cancelEvent = (event) => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  };
-  const select = (nodes, event) => {
-    const targets = nodes.slice(0, 20).map(getTarget).filter(Boolean);
-    state = { ...state, targets };
-    if (window.openai && typeof window.openai.setWidgetState === "function") {
-      Promise.resolve(
-        window.openai.setWidgetState({
-          ...state,
-          editorEvent: {
-            revision: state.revision,
-            event: {
-              type: "select",
-              targets,
-              anchor: event
-                ? {
-                    x: Math.max(
-                      0,
-                      Math.min(1, event.clientX / window.innerWidth),
-                    ),
-                    y: Math.max(
-                      0,
-                      Math.min(1, event.clientY / window.innerHeight),
-                    ),
-                  }
-                : undefined,
-            },
-          },
-        }),
-      ).catch(() => {});
-    }
-    paint();
-  };
-  const box = (rect, kind) => {
-    const element = document.createElement("div");
-    if (kind) {
-      element.setAttribute("data-" + kind, "");
-    }
-    Object.assign(element.style, {
-      left: rect.left + "px",
-      top: rect.top + "px",
-      width: rect.width + "px",
-      height: rect.height + "px",
-    });
-    shadow.append(element);
-  };
-  const regionRect = (value) => ({
-    left: Math.min(value.startX, value.x),
-    top: Math.min(value.startY, value.y),
-    width: Math.abs(value.startX - value.x),
-    height: Math.abs(value.startY - value.y),
-  });
-  function paint() {
-    shadow.replaceChildren(styles);
-    if (!active()) {
-      return;
-    }
-    const selectedNodes = state.targets.map(getNode);
-    for (const element of selectedNodes) {
-      if (element) {
-        box(element.getBoundingClientRect());
-      }
-    }
-    if (hovered?.isConnected && !selectedNodes.includes(hovered)) {
-      box(hovered.getBoundingClientRect(), "hover");
-    }
-    if (gesture && isDragging(gesture)) {
-      box(regionRect(gesture), "hover");
-    }
-  }
-  const queuePaint = () => {
-    if (frame) {
-      return;
-    }
-    frame = requestAnimationFrame(() => {
-      frame = 0;
-      paint();
-    });
-  };
-  const update = (next) => {
-    if (
-      !next ||
-      !Number.isSafeInteger(next.revision) ||
-      !["select", "interact"].includes(next.mode) ||
-      !Array.isArray(next.targets)
-    ) {
-      return;
-    }
-    if (next.revision !== state.revision || next.mode !== state.mode) {
-      cancelGesture();
-      hovered = null;
-      suppressClick = false;
-    }
-    state = next;
-    annotationCursorStyle.media = active() ? "all" : "not all";
-    paint();
-  };
-  window.addEventListener("openai:set_globals", (event) => {
-    if (event.detail?.globals) {
-      update(event.detail.globals.widgetState);
-    }
-  });
-  update(window.openai?.widgetState);
-
-  window.addEventListener(
-    "pointermove",
-    (event) => {
-      if (!active()) {
-        return;
-      }
-      if (gesture && gesture.pointerId === event.pointerId) {
-        cancelEvent(event);
-        gesture.x = event.clientX;
-        gesture.y = event.clientY;
-        if (!gesture.dragging && isDragging(gesture)) {
-          gesture.dragging = true;
-          hovered = null;
-          if (
-            typeof document.documentElement.setPointerCapture === "function"
-          ) {
-            document.documentElement.setPointerCapture(event.pointerId);
-          }
-        }
-      } else {
-        hovered = targetAt(event);
-      }
-      queuePaint();
-    },
-    true,
-  );
-  window.addEventListener(
-    "pointerdown",
-    (event) => {
-      if (!active() || event.button !== 0) {
-        return;
-      }
-      cancelEvent(event);
-      suppressClick = false;
-      gesture = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        x: event.clientX,
-        y: event.clientY,
-        dragging: false,
-      };
-    },
-    true,
-  );
-  window.addEventListener(
-    "pointerup",
-    (event) => {
-      if (!active()) {
-        return;
-      }
-      cancelEvent(event);
-      if (!gesture || event.pointerId !== gesture.pointerId) {
-        return;
-      }
-      gesture.x = event.clientX;
-      gesture.y = event.clientY;
-      if (!isDragging(gesture)) {
-        cancelGesture();
-        paint();
-        return;
-      }
-      const rect = regionRect(gesture);
-      cancelGesture();
-      hovered = null;
-      suppressClick = true;
-      const nodes = [...document.body.querySelectorAll("*")].filter(
-        (element) => {
-          if (!selectable(element)) {
-            return false;
-          }
-          const bounds = element.getBoundingClientRect();
-          return (
-            bounds.width > 0 &&
-            bounds.height > 0 &&
-            bounds.left >= rect.left &&
-            bounds.top >= rect.top &&
-            bounds.right <= rect.left + rect.width &&
-            bounds.bottom <= rect.top + rect.height
-          );
-        },
-      );
-      const enclosed = new Set(nodes);
-      select(
-        nodes.filter((node) => {
-          let parent = node.parentElement;
-          while (parent) {
-            if (enclosed.has(parent)) {
-              return false;
-            }
-            parent = parent.parentElement;
-          }
-          return true;
-        }),
-        event,
-      );
-    },
-    true,
-  );
-  window.addEventListener(
-    "pointercancel",
-    () => {
-      cancelGesture();
-      paint();
-    },
-    true,
-  );
-  window.addEventListener(
-    "click",
-    (event) => {
-      if (!active()) {
-        return;
-      }
-      cancelEvent(event);
-      if (suppressClick) {
-        suppressClick = false;
-        return;
-      }
-      const element = targetAt(event);
-      if (element) {
-        select([element], event);
-      }
-    },
-    true,
-  );
-  window.addEventListener(
-    "keydown",
-    (event) => {
-      if (!active() || event.isComposing) {
-        return;
-      }
-      if (event.key === "Escape") {
-        cancelEvent(event);
-        cancelGesture();
-        select([]);
-      }
-      if (event.key === "Enter") {
-        cancelEvent(event);
-        const element = targetAt(event);
-        if (element) {
-          select([element]);
-        }
-      }
-    },
-    true,
-  );
-  function cancelGesture() {
-    if (
-      gesture &&
-      typeof document.documentElement.hasPointerCapture === "function" &&
-      document.documentElement.hasPointerCapture(gesture.pointerId)
-    ) {
-      document.documentElement.releasePointerCapture(gesture.pointerId);
-    }
-    gesture = null;
-  }
-  window.addEventListener("blur", () => {
-    cancelGesture();
-    hovered = null;
-    paint();
-  });
-  for (const type of ["dblclick", "submit", "dragstart", "beforeinput"]) {
-    window.addEventListener(
-      type,
-      (event) => {
-        if (active()) {
-          cancelEvent(event);
-        }
-      },
-      true,
-    );
-  }
-  window.addEventListener("scroll", queuePaint, true);
-  window.addEventListener("resize", queuePaint);
-
-  const mountOverlay = () => {
-    document.documentElement.append(overlay, annotationCursorStyle);
-    if (typeof overlay.showPopover === "function") {
-      overlay.showPopover();
-    }
-    paint();
-  };
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mountOverlay, { once: true });
-  } else {
-    mountOverlay();
-  }
-})();
-</script>
+<html lang="id-ID" class="transparentSkybridgeBackground desktopSkybridge dark" data-theme="dark" style="color-scheme: dark; --safe-area-inset-top: 0px; --safe-area-inset-bottom: 0px; --safe-area-inset-left: 0px; --safe-area-inset-right: 0px;"><head><style>@layer sandbox-defaults{html,body,#root{margin:0;padding:0}}</style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Portofolio Pribadi</title>
@@ -591,7 +180,7 @@ input:focus, textarea:focus { border-color: #397e73; }
 .gallery-panel { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px; min-width:0; }
 .gallery-panel h3 { margin-bottom:8px; font-size:19px; }
 .gallery-panel > p { color:var(--muted); font-size:13px; line-height:1.65; }
-.upload-label { display:inline-flex; align-items:center; justify-content:center; padding:11px 15px; border-radius:999px; background:#245b57; color:#fff; font-weight:800; font-size:12px; cursor:pointer; }
+.upload-label { display:inline-flex; align-items:center; gap:8px; margin-top:8px; padding:9px 12px; border-radius:999px; background:#245b57; color:#fff; font-size:12px; font-weight:800; cursor:pointer; }
 .upload-label input { display:none; }
 .gallery-items { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; margin-top:18px; }
 .gallery-item { border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--surface); min-width:0; }
@@ -616,71 +205,71 @@ body.visual-editing [data-visual-editable="true"]:focus { outline-color: #ffe18a
       
     }
 html,body,#root{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}html,body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen,Ubuntu,Cantarell,Helvetica Neue,Arial,sans-serif!important}button,input,textarea,select{font-family:inherit}html{background-color:transparent}html.chatgptOled.dark,html.mobileSkybridge.dark{background-color:#000}@supports (font: -apple-system-body){html.mobileSkybridge{font:-apple-system-body}}html.desktopSkybridge.dark{background-color:#1e1e1e}html.transparentSkybridgeBackground,html.transparentSkybridgeBackground.dark{background-color:transparent}html.androidSkybridge,html.androidSkybridge body,html.androidSkybridge *{-webkit-tap-highlight-color:rgba(255,255,255,0)}html.androidSkybridge *::selection,html.androidSkybridge *::-moz-selection{background:#fff0;color:inherit}</style></head>
-<body data-sites-preview-node="node-root" class="page-mode">
+<body class="page-mode">
 
-<div id="app" data-sites-preview-node="node-6">
-  <div class="wrap" data-sites-preview-node="node-7">
-    <nav aria-label="Navigasi utama" data-sites-preview-node="node-8">
-      <a class="brand" href="#beranda" data-sites-preview-node="node-9" aria-current="false"><span class="brand-mark" data-sites-preview-node="node-10">FF</span><span data-sites-preview-node="node-11">PORTOFOLIO<span style="color:#668d53" data-sites-preview-node="node-12">.</span></span></a>
-      <div class="nav-links" data-sites-preview-node="node-13"><a href="#beranda" data-sites-preview-node="node-14" aria-current="false">Beranda</a><a href="#tentang" data-sites-preview-node="node-15" aria-current="false">Tentang</a><a href="#pengalaman" data-sites-preview-node="node-16" aria-current="false">Pengalaman</a><a href="#proyek" data-sites-preview-node="node-17" aria-current="false">Portofolio</a><a href="#keahlian" data-sites-preview-node="node-18" aria-current="false">Keahlian</a><a href="#galeri" data-sites-preview-node="node-19" aria-current="false">Foto &amp; sertifikat</a><a href="#pencapaian" data-sites-preview-node="node-20" aria-current="page">Pencapaian</a><a href="#kontak" data-sites-preview-node="node-21" aria-current="false">Kontak</a></div>
-      <a class="nav-cta" href="CV_Fitrah.pdf" target="_blank" rel="noreferrer" data-sites-preview-node="node-22">Lihat CV <span aria-hidden="true" data-sites-preview-node="node-23">↗</span></a>
+<div id="app">
+  <div class="wrap">
+    <nav aria-label="Navigasi utama">
+      <a class="brand" href="#beranda" aria-current="false"><span class="brand-mark">FF</span><span>PORTOFOLIO<span style="color:#668d53">.</span></span></a>
+      <div class="nav-links"><a href="#beranda" aria-current="false">Beranda</a><a href="#tentang" aria-current="false">Tentang</a><a href="#pengalaman" aria-current="false">Pengalaman</a><a href="#proyek" aria-current="false">Portofolio</a><a href="#keahlian" aria-current="false">Keahlian</a><a href="#galeri" aria-current="page">Foto &amp; sertifikat</a><a href="#pencapaian" aria-current="false">Pencapaian</a><a href="#kontak" aria-current="false">Kontak</a></div>
+      <a class="nav-cta" href="CV-Fitrah.Pdf" target="_blank" rel="noreferrer">Lihat CV <span aria-hidden="true">↗</span></a>
     </nav>
-    <main data-sites-preview-node="node-24">
-      <section class="hero" id="beranda" style="padding-top:0" data-sites-preview-node="node-25">
-        <div data-sites-preview-node="node-26">
-          <div class="eyebrow" data-sites-preview-node="node-27"><span class="dot" data-sites-preview-node="node-28"></span> Terbuka untuk peluang karier</div>
-          <h1 data-sites-preview-node="node-29">Halo, saya <span data-sites-preview-node="node-30">Fitrah.</span><br data-sites-preview-node="node-31">Administrasi dan pengelolaan informasi.</h1>
-          <p class="lead" data-sites-preview-node="node-32">Lulusan S1 Sosiologi Universitas Negeri Makassar dengan pengalaman administrasi perkantoran, pengarsipan, pemeriksaan dokumen, penulisan berita, dan dokumentasi. Saat ini mengikuti MagangHub Kemnaker di BPVP Pangkep sejak Agustus 2026, dengan fokus pada administrasi pelatihan, pengelolaan dokumen, dan data peserta.</p>
-          <div class="hero-actions" data-sites-preview-node="node-33"><a class="button" href="#pengalaman" data-sites-preview-node="node-34" aria-current="false">Lihat pengalaman <span aria-hidden="true" data-sites-preview-node="node-35">↘</span></a><a class="button secondary" href="#kontak" data-sites-preview-node="node-36" aria-current="false">Hubungi saya</a><a class="button" href="CV_Fitrah.pdf" target="_blank" rel="noreferrer" data-sites-preview-node="node-37">Lihat CV ↗</a><a class="button secondary" href="CV_Fitrah.pdf" download="CV_Fitrah.pdf" data-sites-preview-node="node-38">Unduh CV ↓</a></div>
-          <div class="hero-meta" data-sites-preview-node="node-39"><div data-sites-preview-node="node-40"><strong data-sites-preview-node="node-41">Administrasi 📂</strong>Data rapi, kerja happy</div><div data-sites-preview-node="node-42"><strong data-sites-preview-node="node-43">Komunikasi 💬</strong>Nulis, ngobrol, koordinasi</div><div data-sites-preview-node="node-44"><strong data-sites-preview-node="node-45">Riset 🔎</strong>Belajar dari banyak cerita</div></div>
+    <main>
+      <section class="hero" id="beranda" style="padding-top:0">
+        <div>
+          <div class="eyebrow"><span class="dot"></span> Terbuka untuk peluang karier</div>
+          <h1>Halo, saya <span>Fitrah.</span><br>Administrasi dan pengelolaan informasi.</h1>
+          <p class="lead">Lulusan S1 Sosiologi Universitas Negeri Makassar dengan pengalaman administrasi perkantoran, pengarsipan, pemeriksaan dokumen, penulisan berita, dan dokumentasi. Saat ini mengikuti MagangHub Kemnaker di BPVP Pangkep sejak Agustus 2026, dengan fokus pada administrasi pelatihan, pengelolaan dokumen, dan data peserta.</p>
+          <div class="hero-actions"><a class="button" href="#pengalaman" aria-current="false">Lihat pengalaman <span aria-hidden="true">↘</span></a><a class="button secondary" href="#kontak" aria-current="false">Hubungi saya</a><a class="button" href="CV-Fitrah.Pdf" target="_blank" rel="noreferrer">Lihat CV ↗</a><a class="button secondary" href="CV-Fitrah.Pdf" download="CV-Fitrah.Pdf">Unduh CV ↓</a></div>
+          <div class="hero-meta"><div><strong>Administrasi 📂</strong>Data rapi, kerja happy</div><div><strong>Komunikasi 💬</strong>Nulis, ngobrol, koordinasi</div><div><strong>Riset 🔎</strong>Belajar dari banyak cerita</div></div>
         </div>
-        <div class="visual" aria-label="Kartu profil portofolio" data-sites-preview-node="node-46">
-          <div class="profile-card" data-sites-preview-node="node-47"><div style="font-size:11px;letter-spacing:.15em;font-weight:800;color:#d1ded7" data-sites-preview-node="node-48">PROFIL PROFESIONAL / 2026</div><div class="avatar" data-sites-preview-node="node-49">FF</div><h2 data-sites-preview-node="node-50">Fitrah</h2><p data-sites-preview-node="node-51">Lulusan S1 Sosiologi<br data-sites-preview-node="node-52">Universitas Negeri Makassar</p><div class="profile-bottom" data-sites-preview-node="node-53"><span data-sites-preview-node="node-54">Sulawesi Selatan</span><span data-sites-preview-node="node-55">Administrasi · Dokumentasi</span></div></div>
-          <div class="float-note" data-sites-preview-node="node-56"><strong data-sites-preview-node="node-57">Teliti, adaptif, bertanggung jawab</strong><span style="color:var(--muted)" data-sites-preview-node="node-58">Administrasi · Komunikasi · Riset</span></div>
-        </div>
-      </section>
-      <section id="tentang" data-sites-preview-node="node-59" class="">
-        <div class="section-head" data-sites-preview-node="node-60"><div data-sites-preview-node="node-61"><div class="kicker" data-sites-preview-node="node-62">01 / Tentang saya</div><h2 class="section-title" data-sites-preview-node="node-63">Menghubungkan ketelitian,<br data-sites-preview-node="node-64">komunikasi, dan riset.</h2></div><p class="section-intro" data-sites-preview-node="node-65">Saya ingin terus mengembangkan kemampuan profesional melalui pengalaman kerja, kolaborasi, dan pembelajaran berkelanjutan.</p></div>
-        <div class="about-grid" data-sites-preview-node="node-66"><div class="about-panel" data-sites-preview-node="node-67"><h3 data-sites-preview-node="node-68">Profil profesional</h3><p data-sites-preview-node="node-69">Saya lulusan S1 Sosiologi Universitas Negeri Makassar yang memiliki pengalaman di bidang administrasi perkantoran, pengelolaan dokumen, penulisan berita, dan penelitian. Saya terbiasa mempelajari alur kerja baru serta berusaha menyelesaikan tugas secara teliti dan bertanggung jawab.</p></div><div class="about-panel" style="background:var(--surface);border:1px solid var(--border)" data-sites-preview-node="node-70"><h3 data-sites-preview-node="node-71">Fokus profesional</h3><p data-sites-preview-node="node-72">Menerapkan kemampuan akademik dan pengalaman kerja dalam pengarsipan, pemeriksaan berkas, administrasi data, komunikasi profesional, dokumentasi, dan penulisan.</p><div class="stat-row" data-sites-preview-node="node-73"><div class="stat" data-sites-preview-node="node-74"><strong data-sites-preview-node="node-75">Administrasi</strong><span data-sites-preview-node="node-76">Data dan arsip</span></div><div class="stat" data-sites-preview-node="node-77"><strong data-sites-preview-node="node-78">Media</strong><span data-sites-preview-node="node-79">Penulisan berita</span></div><div class="stat" data-sites-preview-node="node-80"><strong data-sites-preview-node="node-81">Riset</strong><span data-sites-preview-node="node-82">Karya ilmiah</span></div></div></div></div>
-      </section>
-      <section id="pengalaman" style="background:var(--site-secondary)" data-sites-preview-node="node-83" class="">
-        <div class="section-head" data-sites-preview-node="node-84"><div data-sites-preview-node="node-85"><div class="kicker" data-sites-preview-node="node-86">02 / Pengalaman</div><h2 class="section-title" data-sites-preview-node="node-87">Pengalaman kerja<br data-sites-preview-node="node-88">dan pembelajaran.</h2></div><p class="section-intro" data-sites-preview-node="node-89">Pengalaman magang dan kegiatan profesional yang membantu saya memahami proses kerja, komunikasi, ketelitian, dan tanggung jawab.</p></div>
-        <div class="experience-list" data-sites-preview-node="node-90">
-          <article class="experience" data-sites-preview-node="node-91"><div class="company-icon" data-sites-preview-node="node-92">BPVP</div><div data-sites-preview-node="node-93"><h3 data-sites-preview-node="node-94">Administrasi Perkantoran Umum</h3><div class="org" data-sites-preview-node="node-95">MagangHub Kemnaker · BPVP Pangkep · Agustus 2026–sekarang</div><p data-sites-preview-node="node-96">Mendukung kegiatan administrasi pelatihan dan pengelolaan dokumen. Mengembangkan ketelitian, koordinasi, serta pemahaman terhadap alur administrasi perkantoran.</p></div><span class="pill" data-sites-preview-node="node-97">Administrasi</span></article>
-          <article class="experience" data-sites-preview-node="node-98"><div class="company-icon" data-sites-preview-node="node-99">PG</div><div data-sites-preview-node="node-100"><h3 data-sites-preview-node="node-101">Administrasi &amp; Pengelolaan Dokumen</h3><div class="org" data-sites-preview-node="node-102">PT Pegadaian · Kantor Wilayah VI Makassar · September–Desember 2024</div><p data-sites-preview-node="node-103">Mendukung administrasi persuratan dan pengarsipan, memeriksa kelengkapan dokumen, mencocokkan data, serta membantu pengelolaan berkas terkait layanan nasabah.</p></div><span class="pill" data-sites-preview-node="node-104">Administrasi</span></article>
-          <article class="experience" data-sites-preview-node="node-105"><div class="company-icon" data-sites-preview-node="node-106">HF</div><div data-sites-preview-node="node-107"><h3 data-sites-preview-node="node-108">Penulisan Berita &amp; Dokumentasi</h3><div class="org" data-sites-preview-node="node-109">PT Harian Fajar Graha Pena · Februari–Juni 2025</div><p data-sites-preview-node="node-110">Mendukung kegiatan jurnalistik melalui penulisan berita, peliputan, dan dokumentasi kegiatan, termasuk kegiatan sekolah serta penyusunan informasi untuk kebutuhan media.</p></div><span class="pill" data-sites-preview-node="node-111">Media &amp; komunikasi</span></article>
-          <article class="experience" data-sites-preview-node="node-112"><div class="company-icon" data-sites-preview-node="node-113">UNM</div><div data-sites-preview-node="node-114"><h3 data-sites-preview-node="node-115">S1 Sosiologi</h3><div class="org" data-sites-preview-node="node-116">Universitas Negeri Makassar · Fakultas Ilmu Sosial dan Hukum · Lulus Mei 2026</div><p data-sites-preview-node="node-117">Mengembangkan kemampuan analisis sosial, pengumpulan data, wawancara, penulisan akademik, dan penyusunan laporan penelitian.</p></div><span class="pill" data-sites-preview-node="node-118">Akademik</span></article>
+        <div class="visual" aria-label="Kartu profil portofolio">
+          <div class="profile-card"><div style="font-size:11px;letter-spacing:.15em;font-weight:800;color:#d1ded7">PROFIL PROFESIONAL / 2026</div><div class="avatar">FF</div><h2>Fitrah</h2><p>Lulusan S1 Sosiologi<br>Universitas Negeri Makassar</p><div class="profile-bottom"><span>Sulawesi Selatan</span><span>Administrasi · Dokumentasi</span></div></div>
+          <div class="float-note"><strong>Teliti, adaptif, bertanggung jawab</strong><span style="color:var(--muted)">Administrasi · Komunikasi · Riset</span></div>
         </div>
       </section>
-      <section id="proyek" data-sites-preview-node="node-119" class="">
-        <div class="section-head" data-sites-preview-node="node-120"><div data-sites-preview-node="node-121"><div class="kicker" data-sites-preview-node="node-122">03 / Yang pernah dikerjakan</div><h2 class="section-title" data-sites-preview-node="node-123">Dari ide jadi aksi.</h2></div><p class="section-intro" data-sites-preview-node="node-124">Beberapa bidang yang saya tekuni. Dokumentasi dan hasil karya bisa ditambahkan supaya ceritanya makin lengkap.</p></div>
-        <div class="projects" data-sites-preview-node="node-125"><article class="project" data-sites-preview-node="node-126"><div class="project-number" data-sites-preview-node="node-127">CERITA / 01</div><h3 data-sites-preview-node="node-128">Administrasi &amp; Arsip</h3><p data-sites-preview-node="node-129">Merapikan surat masuk dan keluar, menata arsip, memeriksa kelengkapan berkas, dan mencocokkan data. Kelihatannya sederhana, tapi harus teliti.</p><div class="tagline" data-sites-preview-node="node-130">Rapi dulu, baru gas ✨</div></article><article class="project" data-sites-preview-node="node-131"><div class="project-number" data-sites-preview-node="node-132">CERITA / 02</div><h3 data-sites-preview-node="node-133">Berita &amp; Peliputan</h3><p data-sites-preview-node="node-134">Menyusun naskah berita dan mendokumentasikan kegiatan. Tantangannya: bikin informasi tetap jelas, menarik, dan nggak kehilangan inti cerita.</p><div class="tagline" data-sites-preview-node="node-135">Dari kejadian jadi cerita</div></article><article class="project" data-sites-preview-node="node-136"><div class="project-number" data-sites-preview-node="node-137">CERITA / 03</div><h3 data-sites-preview-node="node-138">Riset &amp; Karya Ilmiah</h3><p data-sites-preview-node="node-139">Menggali isu sosial, mengolah temuan, dan merangkai hasilnya jadi tulisan. Rasa penasaran jadi modal awal untuk mencari jawaban.</p><div class="tagline" data-sites-preview-node="node-140">Kepo yang produktif 🔎</div></article></div>
+      <section id="tentang">
+        <div class="section-head"><div><div class="kicker">01 / Tentang saya</div><h2 class="section-title">Menghubungkan ketelitian,<br>komunikasi, dan riset.</h2></div><p class="section-intro">Saya ingin terus mengembangkan kemampuan profesional melalui pengalaman kerja, kolaborasi, dan pembelajaran berkelanjutan.</p></div>
+        <div class="about-grid"><div class="about-panel"><h3>Profil profesional</h3><p>Saya lulusan S1 Sosiologi Universitas Negeri Makassar yang memiliki pengalaman di bidang administrasi perkantoran, pengelolaan dokumen, penulisan berita, dan penelitian. Saya terbiasa mempelajari alur kerja baru serta berusaha menyelesaikan tugas secara teliti dan bertanggung jawab.</p></div><div class="about-panel" style="background:var(--surface);border:1px solid var(--border)"><h3>Fokus profesional</h3><p>Menerapkan kemampuan akademik dan pengalaman kerja dalam pengarsipan, pemeriksaan berkas, administrasi data, komunikasi profesional, dokumentasi, dan penulisan.</p><div class="stat-row"><div class="stat"><strong>Administrasi</strong><span>Data dan arsip</span></div><div class="stat"><strong>Media</strong><span>Penulisan berita</span></div><div class="stat"><strong>Riset</strong><span>Karya ilmiah</span></div></div></div></div>
       </section>
-      <section id="keahlian" style="background:var(--site-secondary)" data-sites-preview-node="node-141" class="">
-        <div class="skills-wrap" data-sites-preview-node="node-142"><div data-sites-preview-node="node-143"><div class="kicker" data-sites-preview-node="node-144">04 / Skill yang terus diasah</div><h2 class="section-title" data-sites-preview-node="node-145">Belum berhenti<br data-sites-preview-node="node-146">di sini.</h2><p data-sites-preview-node="node-147">Ini bekal yang saya kembangkan lewat kuliah dan pengalaman. Masih ada ruang buat belajar—karena upgrade diri nggak harus nunggu jadi ahli dulu.</p></div><div class="skills" data-sites-preview-node="node-148"><span class="skill" data-sites-preview-node="node-149">Administrasi perkantoran</span><span class="skill" data-sites-preview-node="node-150">Pengarsipan dokumen</span><span class="skill" data-sites-preview-node="node-151">Microsoft Word</span><span class="skill" data-sites-preview-node="node-152">Microsoft Excel</span><span class="skill" data-sites-preview-node="node-153">Google Sheets</span><span class="skill" data-sites-preview-node="node-154">Penulisan berita</span><span class="skill" data-sites-preview-node="node-155">Penulisan akademik</span><span class="skill" data-sites-preview-node="node-156">Pengumpulan data</span><span class="skill" data-sites-preview-node="node-157">Komunikasi</span><span class="skill" data-sites-preview-node="node-158">Kerja sama tim</span><span class="skill" data-sites-preview-node="node-159">Dokumentasi kegiatan</span><span class="skill" data-sites-preview-node="node-160">Manajemen waktu</span></div></div>
-      </section>
-      <section id="galeri" data-sites-preview-node="node-161" class="">
-        <div class="section-head" data-sites-preview-node="node-162"><div data-sites-preview-node="node-163"><div class="kicker" data-sites-preview-node="node-164">05 / Bukti dan dokumentasi 📸</div><h2 class="section-title" data-sites-preview-node="node-165">Bukan cuma cerita,<br data-sites-preview-node="node-166">ada buktinya.</h2></div><p class="section-intro" data-sites-preview-node="node-167">Tambahkan foto kegiatan, dokumentasi magang, sertifikat, atau bukti pencapaian agar pengunjung bisa melihat perjalananmu.</p></div>
-        <div class="gallery-grid" data-sites-preview-node="node-168">
-          <div class="gallery-panel" data-sites-preview-node="node-169"><h3 data-sites-preview-node="node-170">📷 Foto &amp; dokumentasi</h3><p data-sites-preview-node="node-171">Unggah foto kegiatan, magang, pelatihan, atau hasil karya.</p><label class="upload-label" data-sites-preview-node="node-172">+ Tambah foto<input id="photoUpload" type="file" accept="image/*" multiple=""></label><div id="photoGallery" class="gallery-items" data-sites-preview-node="node-173"><div class="gallery-empty">Belum ada berkas. Pilih gambar atau PDF dari perangkatmu untuk menampilkannya di sini.</div></div></div>
-          <div class="gallery-panel" data-sites-preview-node="node-175"><h3 data-sites-preview-node="node-176">🏅 Sertifikat &amp; bukti</h3><p data-sites-preview-node="node-177">Unggah sertifikat asli atau dokumen pencapaian. Tambahkan nama sertifikat yang mudah dikenali.</p><label class="upload-label" data-sites-preview-node="node-178">+ Tambah sertifikat<input id="certificateUpload" type="file" accept="image/*,.pdf,application/pdf" multiple=""></label><div id="certificateGallery" class="gallery-items" data-sites-preview-node="node-179"><div class="gallery-empty">Belum ada berkas. Pilih gambar atau PDF dari perangkatmu untuk menampilkannya di sini.</div></div></div>
-        </div>
-        <div class="edit-tip" data-sites-preview-node="node-181"><strong data-sites-preview-node="node-182">Catatan:</strong> berkas yang ditambahkan tersimpan di browser perangkat ini. Untuk membagikannya kepada perekrut, gunakan “Unduh hasil edit” setelah menambahkan foto/sertifikat; pastikan dokumen yang diunggah memang milikmu dan tutupi data pribadi yang tidak perlu.</div>
-      </section>
-      <section id="pencapaian" data-sites-preview-node="node-183" class="page-active">
-        <div class="opportunity-stack" data-sites-preview-node="node-184">
-          <div class="opportunity-card" data-sites-preview-node="node-185"><div data-sites-preview-node="node-186"><div class="kicker" data-sites-preview-node="node-187">Lagi terbuka buat peluang baru 👀</div><h2 data-sites-preview-node="node-188">Ada ide? Gas ngobrol! 💬</h2><p data-sites-preview-node="node-189">Siapa tahu obrolan santai jadi kolaborasi seru. Terbuka buat peluang kerja, ide kreatif, dan kenalan profesional baru—asal jangan cuma “P” terus hilang. 😆</p></div><div class="opportunity-mark" aria-hidden="true" data-sites-preview-node="node-190">💬</div></div>
-          <div class="achievement" data-sites-preview-node="node-191"><div data-sites-preview-node="node-192"><div class="kicker" data-sites-preview-node="node-193">Salah satu milestone · 2025</div><h2 data-sites-preview-node="node-194">Pendanaan Riset Bina Insan Akademia 2025</h2><p data-sites-preview-node="node-195">Terpilih sebagai penerima pendanaan dari Kementerian Pemuda dan Olahraga Republik Indonesia setelah melewati seleksi berkas dan wawancara. Pencapaian ini menjadi motivasi untuk terus mengembangkan kemampuan riset dan menghasilkan penelitian yang bermanfaat.</p></div><div class="achievement-mark" aria-hidden="true" data-sites-preview-node="node-196">✳</div></div>
+      <section id="pengalaman" style="background:var(--site-secondary)">
+        <div class="section-head"><div><div class="kicker">02 / Pengalaman</div><h2 class="section-title">Pengalaman kerja<br>dan pembelajaran.</h2></div><p class="section-intro">Pengalaman magang dan kegiatan profesional yang membantu saya memahami proses kerja, komunikasi, ketelitian, dan tanggung jawab.</p></div>
+        <div class="experience-list">
+          <article class="experience"><div class="company-icon">BPVP</div><div><h3>Administrasi Perkantoran Umum</h3><div class="org">MagangHub Kemnaker · BPVP Pangkep · Agustus 2026–sekarang</div><p>Mendukung kegiatan administrasi pelatihan dan pengelolaan dokumen. Mengembangkan ketelitian, koordinasi, serta pemahaman terhadap alur administrasi perkantoran.</p></div><span class="pill">Administrasi</span></article>
+          <article class="experience"><div class="company-icon">PG</div><div><h3>Administrasi &amp; Pengelolaan Dokumen</h3><div class="org">PT Pegadaian · Kantor Wilayah VI Makassar · September–Desember 2024</div><p>Mendukung administrasi persuratan dan pengarsipan, memeriksa kelengkapan dokumen, mencocokkan data, serta membantu pengelolaan berkas terkait layanan nasabah.</p></div><span class="pill">Administrasi</span></article>
+          <article class="experience"><div class="company-icon">HF</div><div><h3>Penulisan Berita &amp; Dokumentasi</h3><div class="org">PT Harian Fajar Graha Pena · Februari–Juni 2025</div><p>Mendukung kegiatan jurnalistik melalui penulisan berita, peliputan, dan dokumentasi kegiatan, termasuk kegiatan sekolah serta penyusunan informasi untuk kebutuhan media.</p></div><span class="pill">Media &amp; komunikasi</span></article>
+          <article class="experience"><div class="company-icon">UNM</div><div><h3>S1 Sosiologi</h3><div class="org">Universitas Negeri Makassar · Fakultas Ilmu Sosial dan Hukum · Lulus Mei 2026</div><p>Mengembangkan kemampuan analisis sosial, pengumpulan data, wawancara, penulisan akademik, dan penyusunan laporan penelitian.</p></div><span class="pill">Akademik</span></article>
         </div>
       </section>
-      <section id="kontak" data-sites-preview-node="node-197">
-        <div class="section-head" data-sites-preview-node="node-198"><div data-sites-preview-node="node-199"><div class="kicker" data-sites-preview-node="node-200">06 / Kontak</div><h2 class="section-title" data-sites-preview-node="node-201">Mari terhubung.</h2></div><p class="section-intro" data-sites-preview-node="node-202">Terbuka untuk kesempatan kerja, administrasi perkantoran, kolaborasi, dan pengembangan profesional.</p></div>
-        <div class="contact-grid" data-sites-preview-node="node-203"><div class="contact-copy" data-sites-preview-node="node-204"><p data-sites-preview-node="node-205">Silakan hubungi saya untuk diskusi mengenai peluang kerja, administrasi, atau kolaborasi profesional.</p><div class="contact-links" data-sites-preview-node="node-206"><a class="contact-item" href="mailto:fitra23112003@gmail.com" data-sites-preview-node="node-207"><span data-sites-preview-node="node-208">✉</span> fitra23112003@gmail.com</a><a class="contact-item" href="tel:085738058769" data-sites-preview-node="node-209"><span data-sites-preview-node="node-210">☎</span> 0857-3805-8769</a><div class="contact-item" data-sites-preview-node="node-211"><span data-sites-preview-node="node-212">⌖</span> Pangkep / Makassar, Sulawesi Selatan</div></div><div class="edit-tip" data-sites-preview-node="node-213"><strong data-sites-preview-node="node-214">Sebelum dipublikasikan:</strong> pastikan tautan CV mengarah ke versi terbaru dan tambahkan tautan LinkedIn jika tersedia. Unggah foto atau sertifikat yang relevan tanpa menampilkan data pribadi yang tidak diperlukan.</div></div>
-          <form id="contactForm" data-sites-preview-node="node-215"><label data-sites-preview-node="node-216">Nama<input id="senderName" name="name" placeholder="Nama kamu" required=""></label><label data-sites-preview-node="node-217">Email<input id="senderEmail" name="email" type="email" placeholder="nama@email.com" required=""></label><label data-sites-preview-node="node-218">Pesan<textarea id="senderMessage" name="message" placeholder="Hai Fitrah, aku mau ngobrol soal..." required=""></textarea></label><button class="button" type="submit" data-sites-preview-node="node-219">Siapkan pesan ↗</button><p id="formStatus" aria-live="polite" style="font-size:11px;color:var(--muted);margin:0" data-sites-preview-node="node-220">Form ini menyiapkan file pesan di perangkatmu; belum mengirim pesan langsung ke email.</p></form>
+      <section id="proyek">
+        <div class="section-head"><div><div class="kicker">03 / Yang pernah dikerjakan</div><h2 class="section-title">Dari ide jadi aksi.</h2></div><p class="section-intro">Beberapa bidang yang saya tekuni. Dokumentasi dan hasil karya bisa ditambahkan supaya ceritanya makin lengkap.</p></div>
+        <div class="projects"><article class="project"><div class="project-number">CERITA / 01</div><h3>Administrasi &amp; Arsip</h3><p>Merapikan surat masuk dan keluar, menata arsip, memeriksa kelengkapan berkas, dan mencocokkan data. Kelihatannya sederhana, tapi harus teliti.</p><div class="tagline">Rapi dulu, baru gas ✨</div></article><article class="project"><div class="project-number">CERITA / 02</div><h3>Berita &amp; Peliputan</h3><p>Menyusun naskah berita dan mendokumentasikan kegiatan. Tantangannya: bikin informasi tetap jelas, menarik, dan nggak kehilangan inti cerita.</p><div class="tagline">Dari kejadian jadi cerita</div></article><article class="project"><div class="project-number">CERITA / 03</div><h3>Riset &amp; Karya Ilmiah</h3><p>Menggali isu sosial, mengolah temuan, dan merangkai hasilnya jadi tulisan. Rasa penasaran jadi modal awal untuk mencari jawaban.</p><div class="tagline">Kepo yang produktif 🔎</div></article></div>
+      </section>
+      <section id="keahlian" style="background:var(--site-secondary)">
+        <div class="skills-wrap"><div><div class="kicker">04 / Skill yang terus diasah</div><h2 class="section-title">Belum berhenti<br>di sini.</h2><p>Ini bekal yang saya kembangkan lewat kuliah dan pengalaman. Masih ada ruang buat belajar—karena upgrade diri nggak harus nunggu jadi ahli dulu.</p></div><div class="skills"><span class="skill">Administrasi perkantoran</span><span class="skill">Pengarsipan dokumen</span><span class="skill">Microsoft Word</span><span class="skill">Microsoft Excel</span><span class="skill">Google Sheets</span><span class="skill">Penulisan berita</span><span class="skill">Penulisan akademik</span><span class="skill">Pengumpulan data</span><span class="skill">Komunikasi</span><span class="skill">Kerja sama tim</span><span class="skill">Dokumentasi kegiatan</span><span class="skill">Manajemen waktu</span></div></div>
+      </section>
+      <section id="galeri" class="page-active">
+        <div class="section-head"><div><div class="kicker">05 / Bukti dan dokumentasi 📸</div><h2 class="section-title">Bukan cuma cerita,<br>ada buktinya.</h2></div><p class="section-intro">Tambahkan foto kegiatan, dokumentasi magang, sertifikat, atau bukti pencapaian agar pengunjung bisa melihat perjalananmu.</p></div>
+        <div class="gallery-grid">
+          <div class="gallery-panel"><h3>📷 Foto &amp; dokumentasi</h3><p>Dokumentasi kegiatan, magang, pelatihan, atau hasil karya.</p><label class="upload-label">+ Tambah foto<input id="photoUpload" type="file" accept="image/*" multiple=""></label><div id="photoGallery" class="gallery-items"><div class="gallery-empty">Belum ada berkas. Pilih gambar atau PDF dari perangkatmu untuk menampilkannya di sini.</div></div></div>
+          <div class="gallery-panel"><h3>🏅 Sertifikat &amp; bukti</h3><p>Sertifikat asli atau dokumen pencapaian profesional.</p><label class="upload-label">+ Tambah sertifikat<input id="certificateUpload" type="file" accept="image/*,.pdf,application/pdf" multiple=""></label><div id="certificateGallery" class="gallery-items"><article class="gallery-item"><img src="images/Mahasiswa UNM Raih Pendanaan Riset Nasional.png" alt="Pendanaan Riset Bina Insan Akademia 2025"><div class="gallery-caption">Pendanaan Riset Bina Insan Akademia 2025</div><button type="button" class="gallery-remove">Hapus</button></article><article class="gallery-item"><img src="images/SERTIFIKAT LPKP VOL. III 2025 Fitrah_page-0001.jpg" alt="Sertifikat LPKP Vol. III 2025"><div class="gallery-caption">Sertifikat LPKP Vol. III 2025</div><button type="button" class="gallery-remove">Hapus</button></article><article class="gallery-item"><img src="images/sertif fajar Fitrah_page-0001.jpg" alt="Sertifikat Harian Fajar"><div class="gallery-caption">Sertifikat Harian Fajar</div><button type="button" class="gallery-remove">Hapus</button></article></div></div>
+        </div>
+        <div class="edit-tip"><strong>Catatan:</strong> berkas yang ditambahkan tersimpan di browser perangkat ini. Untuk membagikannya kepada perekrut, gunakan “Unduh hasil edit” setelah menambahkan foto/sertifikat; pastikan dokumen yang diunggah memang milikmu dan tutupi data pribadi yang tidak perlu.</div>
+      </section>
+      <section id="pencapaian">
+        <div class="opportunity-stack">
+          <div class="opportunity-card"><div><div class="kicker">Lagi terbuka buat peluang baru 👀</div><h2>Ada ide? Gas ngobrol! 💬</h2><p>Siapa tahu obrolan santai jadi kolaborasi seru. Terbuka buat peluang kerja, ide kreatif, dan kenalan profesional baru—asal jangan cuma “P” terus hilang. 😆</p></div><div class="opportunity-mark" aria-hidden="true">💬</div></div>
+          <div class="achievement"><div><div class="kicker">Salah satu milestone · 2025</div><h2>Pendanaan Riset Bina Insan Akademia 2025</h2><p>Terpilih sebagai penerima pendanaan dari Kementerian Pemuda dan Olahraga Republik Indonesia setelah melewati seleksi berkas dan wawancara. Pencapaian ini menjadi motivasi untuk terus mengembangkan kemampuan riset dan menghasilkan penelitian yang bermanfaat.</p></div><div class="achievement-mark" aria-hidden="true">✳</div></div>
+        </div>
+      </section>
+      <section id="kontak">
+        <div class="section-head"><div><div class="kicker">06 / Kontak</div><h2 class="section-title">Mari terhubung.</h2></div><p class="section-intro">Terbuka untuk kesempatan kerja, administrasi perkantoran, kolaborasi, dan pengembangan profesional.</p></div>
+        <div class="contact-grid"><div class="contact-copy"><p>Silakan hubungi saya untuk diskusi mengenai peluang kerja, administrasi, atau kolaborasi profesional.</p><div class="contact-links"><a class="contact-item" href="mailto:fitra23112003@gmail.com"><span>✉</span> fitra23112003@gmail.com</a><a class="contact-item" href="tel:085738058769"><span>☎</span> 0857-3805-8769</a><div class="contact-item"><span>⌖</span> Pangkep / Makassar, Sulawesi Selatan</div></div><div class="edit-tip"><strong>Sebelum dipublikasikan:</strong> pastikan tautan CV mengarah ke versi terbaru dan tambahkan tautan LinkedIn jika tersedia. Unggah foto atau sertifikat yang relevan tanpa menampilkan data pribadi yang tidak diperlukan.</div></div>
+          <form id="contactForm"><label>Nama<input id="senderName" name="name" placeholder="Nama kamu" required=""></label><label>Email<input id="senderEmail" name="email" type="email" placeholder="nama@email.com" required=""></label><label>Pesan<textarea id="senderMessage" name="message" placeholder="Hai Fitrah, aku mau ngobrol soal..." required=""></textarea></label><button class="button" type="submit">Siapkan pesan ↗</button><p id="formStatus" aria-live="polite" style="font-size:11px;color:var(--muted);margin:0">Form ini menyiapkan file pesan di perangkatmu; belum mengirim pesan langsung ke email.</p></form>
         </div>
       </section>
     </main>
-    <footer data-sites-preview-node="node-221"><div class="footer-inner" data-sites-preview-node="node-222"><span data-sites-preview-node="node-223">© 2026 Fitrah · Portofolio pribadi</span><span data-sites-preview-node="node-224">Pelan-pelan bertumbuh, tetap jalan 🌱</span></div></footer>
+    <footer><div class="footer-inner"><span>© 2026 Fitrah · Portofolio pribadi</span><span>Pelan-pelan bertumbuh, tetap jalan 🌱</span></div></footer>
   </div>
 </div>
 <script>
@@ -769,7 +358,14 @@ document.getElementById('contactForm').addEventListener('submit', function(event
     const input = document.getElementById(group.input);
     const gallery = document.getElementById(group.gallery);
     let items = [];
-    try { items = JSON.parse(localStorage.getItem(group.key) || '[]'); } catch { items = []; }
+    try {
+      const savedItems = localStorage.getItem(group.key);
+      items = savedItems ? JSON.parse(savedItems) : (group.kind === 'certificate' ? [
+        { name:'Pendanaan Riset Bina Insan Akademia 2025', type:'image/png', url:'images/Mahasiswa UNM Raih Pendanaan Riset Nasional.png' },
+        { name:'Sertifikat LPKP Vol. III 2025', type:'image/jpeg', url:'images/SERTIFIKAT LPKP VOL. III 2025 Fitrah_page-0001.jpg' },
+        { name:'Sertifikat Harian Fajar', type:'image/jpeg', url:'images/sertif fajar Fitrah_page-0001.jpg' }
+      ] : []);
+    } catch { items = []; }
     function render() {
       gallery.innerHTML = '';
       if (!items.length) {
@@ -781,7 +377,7 @@ document.getElementById('contactForm').addEventListener('submit', function(event
         if (item.type === 'application/pdf') {
           const pdf = document.createElement('div'); pdf.style.cssText = 'aspect-ratio:4/3;display:grid;place-items:center;background:#fff0f4;font-size:36px'; pdf.textContent = '📄'; card.appendChild(pdf);
         } else {
-          const img = document.createElement('img'); img.src = item.data; img.alt = item.name; card.appendChild(img);
+          const img = document.createElement('img'); img.src = item.data || item.url; img.alt = item.name; card.appendChild(img);
         }
         const caption = document.createElement('div'); caption.className = 'gallery-caption'; caption.textContent = item.name; card.appendChild(caption);
         if (item.type === 'application/pdf') { const open = document.createElement('a'); open.href = item.data; open.target = '_blank'; open.rel = 'noreferrer'; open.textContent = 'Buka PDF'; open.style.cssText = 'display:block;padding:0 10px 10px;font-size:12px;color:#245b57;font-weight:800'; card.appendChild(open); }
@@ -856,23 +452,8 @@ document.getElementById('contactForm').addEventListener('submit', function(event
   });
 })();
 </script>
-<script>
-(() => {
-  const style = document.createElement("style");
-  style.dataset.sitesPreviewTheme = "live";
-  document.body.append(style);
-  const update = (state) => {
-    if (state && typeof state.css === "string") style.textContent = state.css;
-  };
-  update({"css":""});
-  window.addEventListener("openai:set_globals", (event) => {
-    if (event.detail && event.detail.globals) update(event.detail.globals.sandboxDocumentState);
-  });
-})();
-</script><style data-sites-preview-theme="live"></style>
 
-
-<script>globalThis.__codexVisualizationInitialGlobals={"statePersistence":"host","stateModelContext":"untrusted","visualizationStyleVariables":{"--accent":"rgb(19, 52, 99)","--accent-foreground":"rgb(44, 103, 197)","--background":"rgb(0, 0, 0)","--border":"rgba(255, 255, 255, 0.15)","--border-strong":"rgba(255, 255, 255, 0.2)","--card":"color-mix(in oklab, rgb(237, 237, 237) 5%, transparent)","--card-foreground":"rgb(237, 237, 237)","--corner-shape":"round","--control-spacing":"12px","--cursor-interaction":"pointer","--destructive":"rgb(255, 133, 73)","--font-mono":"ui-monospace, SFMono-Regular, \"SF Mono\", menlo, consolas, \"Liberation Mono\", monospace","--font-sans":"-apple-system-body, ui-sans-serif, -apple-system, system-ui, \"Segoe UI\", Helvetica, \"Apple Color Emoji\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"","--font-size-base":"16px","--font-weight-normal":"400","--foreground":"rgb(237, 237, 237)","--input":"rgba(255, 255, 255, 0.2)","--muted":"color-mix(in srgb, rgb(237, 237, 237) 10%, transparent)","--muted-foreground":"rgb(175, 175, 175)","--popover":"rgb(48, 48, 48)","--popover-foreground":"rgb(237, 237, 237)","--primary":"rgb(44, 103, 197)","--primary-foreground":"rgb(13, 13, 13)","--radius":"8px","--radius-2xl":"16px","--radius-lg":"8px","--radius-md":"6px","--radius-sm":"4px","--ring":"rgb(58, 131, 247)","--secondary":"rgb(48, 48, 48)","--secondary-foreground":"rgb(237, 237, 237)","--blue":"rgb(58, 131, 247)","--orange":"rgb(251, 106, 34)","--green":"rgb(64, 201, 119)","--red":"rgb(255, 103, 100)","--purple":"rgb(173, 123, 249)","--yellow":"rgb(255, 210, 64)","--visualize-paint-gutter":"0px","--viz-series-1":"rgb(44, 103, 197)","--viz-series-2":"#f6d459","--viz-series-3":"#f28ec0","--viz-series-4":"#54ccc2","--viz-series-5":"#71d689","--viz-series-6":"#f79951"},"visualizationTheme":"dark"};</script>
+<script>globalThis.__codexVisualizationInitialGlobals={"statePersistence":"none","stateModelContext":"none","visualizationStyleVariables":{"--accent":"rgb(19, 52, 99)","--accent-foreground":"rgb(44, 103, 197)","--background":"rgb(0, 0, 0)","--border":"rgba(255, 255, 255, 0.15)","--border-strong":"rgba(255, 255, 255, 0.2)","--card":"color-mix(in oklab, rgb(237, 237, 237) 5%, transparent)","--card-foreground":"rgb(237, 237, 237)","--corner-shape":"round","--control-spacing":"12px","--cursor-interaction":"pointer","--destructive":"rgb(255, 133, 73)","--font-mono":"ui-monospace, SFMono-Regular, \"SF Mono\", menlo, consolas, \"Liberation Mono\", monospace","--font-sans":"-apple-system-body, ui-sans-serif, -apple-system, system-ui, \"Segoe UI\", Helvetica, \"Apple Color Emoji\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"","--font-size-base":"16px","--font-weight-normal":"400","--foreground":"rgb(237, 237, 237)","--input":"rgba(255, 255, 255, 0.2)","--muted":"color-mix(in srgb, rgb(237, 237, 237) 10%, transparent)","--muted-foreground":"rgb(175, 175, 175)","--popover":"rgb(48, 48, 48)","--popover-foreground":"rgb(237, 237, 237)","--primary":"rgb(44, 103, 197)","--primary-foreground":"rgb(13, 13, 13)","--radius":"8px","--radius-2xl":"16px","--radius-lg":"8px","--radius-md":"6px","--radius-sm":"4px","--ring":"rgb(58, 131, 247)","--secondary":"rgb(48, 48, 48)","--secondary-foreground":"rgb(237, 237, 237)","--blue":"rgb(58, 131, 247)","--orange":"rgb(251, 106, 34)","--green":"rgb(64, 201, 119)","--red":"rgb(255, 103, 100)","--purple":"rgb(173, 123, 249)","--yellow":"rgb(255, 210, 64)","--visualize-paint-gutter":"0px","--viz-series-1":"rgb(44, 103, 197)","--viz-series-2":"#f6d459","--viz-series-3":"#f28ec0","--viz-series-4":"#54ccc2","--viz-series-5":"#71d689","--viz-series-6":"#f79951"},"visualizationTheme":"dark"};</script>
 <style id="codex-visualization-host-theme">:root {}</style>
 <script>
 (() => {
@@ -1229,4 +810,6 @@ document.getElementById('contactForm').addEventListener('submit', function(event
 </script>
 <style id="codex-visualization-document-scrollbar">html,body{scrollbar-width:none!important}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none!important}</style>
 
-</body><div data-sites-preview-runtime="" aria-hidden="true" popover="manual"></div><style data-sites-preview-runtime="" media="not all">:root, :root * { cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2226%22%20height%3D%2226%22%20viewBox%3D%220%200%2026%2026%22%3E%3Cpath%20d%3D%22M13%200.825a12.175%2012.175%200%200%201%200%2024.35H3a2.175%202.175%200%200%201-2.175-2.175V13A12.175%2012.175%200%200%201%2013%200.825Z%22%20fill%3D%22%23339cff%22%20stroke%3D%22white%22%20stroke-width%3D%221.65%22%2F%3E%3C%2Fsvg%3E") 0 25, crosshair !important; }</style></html>
+
+
+</body></html>

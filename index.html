@@ -352,7 +352,7 @@ document.getElementById('contactForm').addEventListener('submit', function(event
 (() => {
   const groups = [
     { input:'photoUpload', gallery:'photoGallery', key:'fitra-portfolio-photos-v1', kind:'photo' },
-    { input:'certificateUpload', gallery:'certificateGallery', key:'fitra-portfolio-certificates-v2', kind:'certificate' }
+    { input:'certificateUpload', gallery:'certificateGallery', key:'fitra-portfolio-certificates-v1', kind:'certificate' }
   ];
   groups.forEach(group => {
     const input = document.getElementById(group.input);
@@ -360,13 +360,39 @@ document.getElementById('contactForm').addEventListener('submit', function(event
     let items = [];
     try {
       const savedItems = localStorage.getItem(group.key);
-      items = savedItems ? JSON.parse(savedItems) : (group.kind === 'certificate' ? [
+      const defaultCertificates = [
         { name:'Pendanaan Riset Bina Insan Akademia 2025', type:'image/png', url:'images/Mahasiswa UNM Raih Pendanaan Riset Nasional.png' },
         { name:'Sertifikat LPKP Vol. III 2025', type:'image/jpeg', url:'images/SERTIFIKAT LPKP VOL. III 2025 Fitrah_page-0001.jpg' },
-        { name:'Sertifikat Penulisan Karya Ilmiah', type:'image/png', url:'images/Sertifikat_Penulisan Karya Ilmiah.png' },
-        { name:'Sertifikat Harian Fajar', type:'image/jpeg', url:'images/sertif fajar Fitrah_page-0001.jpg' }
-      ] : []);
-    } catch { items = []; }
+        { name:'Sertifikat Harian Fajar', type:'image/jpeg', url:'images/sertif fajar Fitrah_page-0001.jpg' },
+        { name:'Sertifikat Penulisan Karya Ilmiah', type:'image/png', url:'images/Sertifikat_Penulisan Karya Ilmiah.png' }
+      ];
+
+      if (savedItems) {
+        items = JSON.parse(savedItems);
+        if (!Array.isArray(items)) items = [];
+      } else {
+        items = group.kind === 'certificate' ? defaultCertificates.slice() : [];
+      }
+
+      // Pastikan sertifikat bawaan yang belum ada tetap ditambahkan,
+      // tanpa menghapus sertifikat lain yang sudah tersimpan di browser.
+      if (group.kind === 'certificate') {
+        defaultCertificates.forEach(cert => {
+          const alreadyExists = items.some(item =>
+            item.name === cert.name || item.url === cert.url
+          );
+          if (!alreadyExists) items.push(cert);
+        });
+        localStorage.setItem(group.key, JSON.stringify(items));
+      }
+    } catch (error) {
+      items = group.kind === 'certificate' ? [
+        { name:'Pendanaan Riset Bina Insan Akademia 2025', type:'image/png', url:'images/Mahasiswa UNM Raih Pendanaan Riset Nasional.png' },
+        { name:'Sertifikat LPKP Vol. III 2025', type:'image/jpeg', url:'images/SERTIFIKAT LPKP VOL. III 2025 Fitrah_page-0001.jpg' },
+        { name:'Sertifikat Harian Fajar', type:'image/jpeg', url:'images/sertif fajar Fitrah_page-0001.jpg' },
+        { name:'Sertifikat Penulisan Karya Ilmiah', type:'image/png', url:'images/Sertifikat_Penulisan Karya Ilmiah.png' }
+      ] : [];
+    }
     function render() {
       gallery.innerHTML = '';
       if (!items.length) {
